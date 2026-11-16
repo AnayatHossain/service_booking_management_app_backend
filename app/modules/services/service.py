@@ -30,7 +30,21 @@ async def list_services(
     if is_featured is not None:
         filter_query["is_featured"] = is_featured
 
-    cursor = db.services.find(filter_query).sort("is_featured", -1).limit(limit)
+    # Return lightweight list projection to prevent overloading server and network
+    cursor = db.services.find(
+        filter_query,
+        projection={
+            "name": 1,
+            "category": 1,
+            "price": 1,
+            "duration_minutes": 1,
+            "image_url": 1,
+            "is_featured": 1,
+            "rating": 1,
+            "total_reviews": 1,
+            "description": 1,
+        }
+    ).sort("is_featured", -1).limit(limit)
     services = await cursor.to_list(length=limit)
     return format_mongo_docs(services)
 
@@ -48,7 +62,24 @@ async def get_service_details(db: AsyncIOMotorDatabase, service_id: str) -> dict
             detail="Service not found."
         )
 
-    return format_mongo_doc(service)
+    formatted = format_mongo_doc(service)
+    # Ensure rich detail fields are populated
+    if "includes" not in formatted or not formatted["includes"]:
+        duration = formatted.get("duration_minutes", 45)
+        formatted["includes"] = [
+            "Vetted & background checked professionals",
+            f"{duration} mins comprehensive servicing",
+            "Full satisfaction guarantee with free rework",
+            "24/7 dedicated in-app support & easy cancel"
+        ]
+    if "available_days" not in formatted or not formatted["available_days"]:
+        formatted["available_days"] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    if "time_slots" not in formatted or not formatted["time_slots"]:
+        formatted["time_slots"] = [
+            "09:00 AM", "10:00 AM", "11:00 AM", "01:00 PM",
+            "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"
+        ]
+    return formatted
 
 
 async def list_categories(db: AsyncIOMotorDatabase) -> List[str]:
