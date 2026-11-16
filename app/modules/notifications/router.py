@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.deps import get_current_user
-from app.core.database import db
+from app.core.database import get_database
 from app.core.responses import success_response, error_response
-from app.utils.helpers import serialize_mongo_doc
+from app.utils.helpers import format_mongo_doc, format_mongo_docs
 
-router = APIRouter(prefix="/notifications", tags=["Notifications"])
+router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 
 
 class NotificationItem(BaseModel):
@@ -22,11 +22,12 @@ class NotificationItem(BaseModel):
 
 @router.get("", summary="Get all notifications for authenticated user")
 async def get_user_notifications(current_user: dict = Depends(get_current_user)):
-    user_id = str(current_user["_id"])
-    cursor = db.get_collection("notifications").find({"user_id": user_id}).sort("created_at", -1)
+    user_id = str(current_user.get("id") or current_user.get("_id"))
+    database = get_database()
+    cursor = database.get_collection("notifications").find({"user_id": user_id}).sort("created_at", -1)
     notifications = []
     async for doc in cursor:
-        notifications.append(serialize_mongo_doc(doc))
+        notifications.append(format_mongo_doc(doc))
 
     # If no notifications exist yet, generate friendly initial welcome & tips notifications
     if not notifications:
@@ -56,10 +57,10 @@ async def get_user_notifications(current_user: dict = Depends(get_current_user))
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },
         ]
-        res = await db.get_collection("notifications").insert_many(default_items)
-        cursor2 = db.get_collection("notifications").find({"user_id": user_id}).sort("created_at", -1)
+        await database.get_collection("notifications").insert_many(default_items)
+        cursor2 = database.get_collection("notifications").find({"user_id": user_id}).sort("created_at", -1)
         async for doc in cursor2:
-            notifications.append(serialize_mongo_doc(doc))
+            notifications.append(format_mongo_doc(doc))
 
     return success_response(data=notifications, message="Notifications retrieved successfully.")
 
@@ -67,13 +68,14 @@ async def get_user_notifications(current_user: dict = Depends(get_current_user))
 @router.patch("/{notification_id}/read", summary="Mark single notification as read")
 async def mark_as_read(notification_id: str, current_user: dict = Depends(get_current_user)):
     from bson import ObjectId
-    user_id = str(current_user["_id"])
+    user_id = str(current_user.get("id") or current_user.get("_id"))
+    database = get_database()
     try:
         oid = ObjectId(notification_id)
     except Exception:
         return error_response(message="Invalid notification ID format.", status_code=status.HTTP_400_BAD_REQUEST)
 
-    result = await db.get_collection("notifications").update_one(
+    result = await database.get_collection("notifications").update_one(
         {"_id": oid, "user_id": user_id},
         {"$set": {"is_read": True, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
@@ -85,8 +87,9 @@ async def mark_as_read(notification_id: str, current_user: dict = Depends(get_cu
 
 @router.patch("/read-all", summary="Mark all notifications as read")
 async def mark_all_as_read(current_user: dict = Depends(get_current_user)):
-    user_id = str(current_user["_id"])
-    await db.get_collection("notifications").update_many(
+    user_id = str(current_user.get("id") or current_user.get("_id"))
+    database = get_database()
+    await database.get_collection("notifications").update_many(
         {"user_id": user_id, "is_read": False},
         {"$set": {"is_read": True, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
