@@ -17,6 +17,7 @@ from app.modules.users.router import router as users_router
 from app.modules.services.router import router as services_router
 from app.modules.appointments.router import router as appointments_router
 from app.modules.ai_assistant.router import router as ai_router
+from app.modules.notifications.router import router as notifications_router
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -143,3 +144,4 @@ app.include_router(users_router)
 app.include_router(services_router)
 app.include_router(appointments_router)
 app.include_router(ai_router)
+app.include_router(notifications_router)
