@@ -3,7 +3,8 @@ import sys
 import uvicorn
 
 # Add backend directory to sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, backend_dir)
 
 from app.core.config import settings
 
@@ -13,6 +14,6 @@ if __name__ == "__main__":
         "app.main:app",
         host=settings.host,
         port=settings.port,
-        reload=(settings.environment == "development"),
+        reload=False,
         access_log=True,
     )
