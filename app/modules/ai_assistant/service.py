@@ -207,21 +207,22 @@ async def process_ai_chat(
     ])
 
     system_instruction = (
-        "You are 'ServiceBot', the official AI Concierge for the Service Booking App powered by Gemini AI. "
+        "You are 'ServiceBot', the official AI Concierge for the Service Booking App. "
         "Your mission is to provide warm, ultra-helpful, highly accurate assistance for customer queries about "
         "services, booking steps, pricing, durations, categories, and recommendations.\n\n"
         "Here is the official live catalog of available services:\n"
         f"{services_summary}\n\n"
         "Instructions:\n"
         "1. Recommend matching services from the catalog by exact name, price, and category.\n"
-        "2. Provide clear, structured, readable responses with bullet points and bold highlights.\n"
-        "3. Explain that users can book appointments directly by choosing any service card and selecting a slot.\n"
+        "2. Provide clean, elegant text. Do NOT use markdown hashtags (###) or markdown horizontal rules (---). Use clean bullet points (•) and bold titles.\n"
+        "3. Explain that users can view details or book appointments directly by tapping on any service card below.\n"
         "4. If a requested service does not exist, recommend the closest alternative from the catalog politely."
     )
 
     # Find matching services to attach as cards
     suggested_services = []
     q_words = req.message.lower().split()
+    default_img = "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800"
     for s in services:
         name_lower = s.get("name", "").lower()
         cat_lower = s.get("category", "").lower()
@@ -233,7 +234,7 @@ async def process_ai_chat(
                 "category": s["category"],
                 "price": float(s["price"]),
                 "duration_minutes": int(s["duration_minutes"]),
-                "image_url": s.get("image_url", "")
+                "image_url": s.get("image_url") or default_img
             })
 
     if not suggested_services and services:
@@ -244,7 +245,7 @@ async def process_ai_chat(
                 "category": s["category"],
                 "price": float(s["price"]),
                 "duration_minutes": int(s["duration_minutes"]),
-                "image_url": s.get("image_url", "")
+                "image_url": s.get("image_url") or default_img
             }
             for s in services if s.get("is_featured")
         ][:2]
