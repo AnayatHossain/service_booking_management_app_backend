@@ -5,7 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.core.database import get_database
 from app.core.deps import get_current_user
 from app.core.responses import success_response
-from app.modules.appointments.schemas import CreateAppointmentRequest
+from app.modules.appointments.schemas import CreateAppointmentRequest, RateAppointmentRequest
 from app.modules.appointments.service import (
     create_appointment,
     get_service_slot_availability,
@@ -14,6 +14,7 @@ from app.modules.appointments.service import (
     cancel_user_appointment,
     list_provider_appointments,
     update_appointment_status_by_provider,
+    rate_appointment,
 )
 
 router = APIRouter(prefix="/api/appointments", tags=["Appointments"])
@@ -112,4 +113,24 @@ async def cancel_appointment(
     return success_response(
         data=updated,
         message="Appointment cancelled successfully."
+    )
+
+
+@router.post("/{appointment_id}/rate", summary="Submit review & rating for completed appointment")
+async def rate_completed_appointment(
+    appointment_id: str,
+    req: RateAppointmentRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    updated = await rate_appointment(
+        db=db,
+        appointment_id=appointment_id,
+        user_id=current_user["id"],
+        rating_val=req.rating,
+        review_text=req.review
+    )
+    return success_response(
+        data=updated,
+        message="Thank you! Your rating and review have been submitted."
     )

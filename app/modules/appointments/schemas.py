@@ -23,6 +23,11 @@ class CheckSlotRequest(BaseModel):
     time_slot: str
 
 
+class RateAppointmentRequest(BaseModel):
+    rating: float = Field(..., ge=1.0, le=5.0, description="Rating between 1.0 and 5.0")
+    review: Optional[str] = Field(None, max_length=500, description="Optional review comment")
+
+
 class AppointmentResponse(BaseModel):
     id: str
     user_id: str

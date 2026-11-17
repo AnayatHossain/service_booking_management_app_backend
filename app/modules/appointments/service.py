@@ -295,3 +295,69 @@ async def update_appointment_status_by_provider(db: AsyncIOMotorDatabase, appoin
             })
 
     return format_mongo_doc(updated)
+
+
+async def rate_appointment(db: AsyncIOMotorDatabase, appointment_id: str, user_id: str, rating_val: float, review_text: Optional[str] = None) -> dict:
+    try:
+        oid = ObjectId(appointment_id)
+        apt = await db.appointments.find_one({"_id": oid, "user_id": str(user_id)})
+    except Exception:
+        apt = await db.appointments.find_one({"id": appointment_id, "user_id": str(user_id)})
+
+    if not apt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment not found or not owned by you."
+        )
+
+    if apt.get("status") != AppointmentStatus.COMPLETED.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only completed appointments can be rated."
+        )
+
+    if apt.get("is_rated") is True:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This appointment has already been rated."
+        )
+
+    now = datetime.now(timezone.utc).isoformat()
+    # Update appointment with rating
+    updated_apt = await db.appointments.find_one_and_update(
+        {"_id": apt["_id"]},
+        {"$set": {
+            "is_rated": True,
+            "rating": rating_val,
+            "review": review_text.strip() if review_text else None,
+            "rated_at": now,
+            "updated_at": now
+        }},
+        return_document=True
+    )
+
+    # Recalculate service rating in MongoDB
+    service_id = apt.get("service_id")
+    if service_id:
+        try:
+            s_oid = ObjectId(service_id)
+            service = await db.services.find_one({"_id": s_oid})
+        except Exception:
+            service = await db.services.find_one({"id": service_id})
+
+        if service:
+            old_reviews = int(service.get("total_reviews", 0))
+            old_rating = float(service.get("rating", 4.8))
+            new_reviews = old_reviews + 1
+            new_rating = round(((old_rating * old_reviews) + rating_val) / new_reviews, 2)
+
+            await db.services.update_one(
+                {"_id": service["_id"]},
+                {"$set": {
+                    "total_reviews": new_reviews,
+                    "rating": new_rating,
+                    "updated_at": now
+                }}
+            )
+
+    return format_mongo_doc(updated_apt)
