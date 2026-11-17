@@ -72,6 +72,13 @@ async def create_appointment(
     req: CreateAppointmentRequest
 ) -> dict:
     # 1. Fetch target service
+    booking_date = req.date or req.appointment_date
+    if not booking_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Appointment date is required (date or appointment_date)."
+        )
+
     try:
         oid = ObjectId(req.service_id)
         service = await db.services.find_one({"_id": oid})
@@ -85,7 +92,7 @@ async def create_appointment(
         )
 
     # 2. Check slot conflict
-    is_free = await check_slot_availability(db, req.service_id, req.date, req.time_slot)
+    is_free = await check_slot_availability(db, req.service_id, booking_date, req.time_slot)
     if not is_free:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -106,7 +113,7 @@ async def create_appointment(
         "provider_id": service.get("provider_id"),
         "provider_name": service.get("provider_name", "Verified Service Provider"),
         "duration_minutes": int(service.get("duration_minutes", 60)),
-        "date": req.date,
+        "date": booking_date,
         "time_slot": req.time_slot,
         "customer_notes": req.customer_notes.strip() if req.customer_notes else None,
         "status": AppointmentStatus.PENDING.value,
@@ -122,7 +129,7 @@ async def create_appointment(
     await db.notifications.insert_one({
         "user_id": str(user["id"]),
         "title": "Booking Submitted! 🎉",
-        "message": f"Congratulations! Your booking for {service_title} on {req.date} at {req.time_slot} is now pending.",
+        "message": f"Congratulations! Your booking for {service_title} on {booking_date} at {req.time_slot} is now pending.",
         "type": "booking",
         "is_read": False,
         "created_at": now,

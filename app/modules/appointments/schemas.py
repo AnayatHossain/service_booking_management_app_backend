@@ -12,7 +12,8 @@ class AppointmentStatus(str, Enum):
 
 class CreateAppointmentRequest(BaseModel):
     service_id: str = Field(..., description="Target service ID")
-    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Appointment date in YYYY-MM-DD format")
+    date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="Appointment date in YYYY-MM-DD format")
+    appointment_date: Optional[str] = Field(None, description="Alternative date field (YYYY-MM-DD)")
     time_slot: str = Field(..., description="Selected time slot, e.g. '10:00 AM'")
     customer_notes: Optional[str] = Field(None, max_length=500, description="Optional booking notes")
 
