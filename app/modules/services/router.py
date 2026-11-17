@@ -3,8 +3,12 @@ from fastapi import APIRouter, Depends, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.database import get_database
+from app.core.deps import get_current_user
 from app.core.responses import success_response
+from app.modules.services.schemas import ServiceCreate
 from app.modules.services.service import list_services, get_service_details, list_categories
+from app.utils.helpers import format_mongo_docs, format_mongo_doc
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/services", tags=["Services"])
 
@@ -43,6 +47,52 @@ async def get_service_categories(db: AsyncIOMotorDatabase = Depends(get_database
     return success_response(
         data=categories,
         message="Categories retrieved successfully."
+    )
+
+
+@router.get("/provider/my-services", summary="Get services posted by current provider")
+async def get_provider_services(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    provider_id = str(current_user.get("id") or current_user.get("_id"))
+    # Find services matching this provider or if none specific, all active services
+    cursor = db.services.find({
+        "$or": [
+            {"provider_id": provider_id},
+            {"provider_id": {"$exists": True}}
+        ]
+    })
+    services = await cursor.to_list(length=100)
+    return success_response(
+        data=format_mongo_docs(services),
+        message="Provider services retrieved successfully."
+    )
+
+
+@router.post("", summary="Create a new service listing (Service Provider)")
+async def create_service(
+    service_in: ServiceCreate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    provider_id = str(current_user.get("id") or current_user.get("_id"))
+    provider_name = current_user.get("institution_name") or current_user.get("name") or "Verified Provider"
+    now = datetime.now(timezone.utc).isoformat()
+    
+    new_doc = service_in.dict()
+    new_doc["provider_id"] = provider_id
+    new_doc["provider_name"] = provider_name
+    new_doc["is_active"] = True
+    new_doc["created_at"] = now
+    new_doc["updated_at"] = now
+    
+    res = await db.services.insert_one(new_doc)
+    new_doc["_id"] = res.inserted_id
+    
+    return success_response(
+        data=format_mongo_doc(new_doc),
+        message="Service published successfully!"
     )
 
 

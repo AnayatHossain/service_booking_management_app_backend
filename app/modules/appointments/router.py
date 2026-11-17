@@ -12,6 +12,8 @@ from app.modules.appointments.service import (
     list_user_appointments,
     get_appointment_by_id,
     cancel_user_appointment,
+    list_provider_appointments,
+    update_appointment_status_by_provider,
 )
 
 router = APIRouter(prefix="/api/appointments", tags=["Appointments"])
@@ -55,6 +57,35 @@ async def get_my_appointments(
         data=appointments,
         message="Appointments retrieved successfully.",
         meta={"total": len(appointments)}
+    )
+
+
+@router.get("/provider/my-bookings", summary="Retrieve all appointments received by the service provider")
+async def get_provider_appointments(
+    status: Optional[str] = Query(None, description="Optional status filter"),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    provider_id = str(current_user.get("id") or current_user.get("_id"))
+    appointments = await list_provider_appointments(db, provider_id, status_filter=status)
+    return success_response(
+        data=appointments,
+        message="Provider bookings retrieved successfully.",
+        meta={"total": len(appointments)}
+    )
+
+
+@router.patch("/{appointment_id}/status", summary="Provider update appointment status (Pending/Confirmed/Completed/Cancelled)")
+async def update_status(
+    appointment_id: str,
+    status: str = Query(..., description="Target status: Confirmed, Completed, Cancelled"),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    updated = await update_appointment_status_by_provider(db, appointment_id, status)
+    return success_response(
+        data=updated,
+        message=f"Appointment status updated to {status}."
     )
 
 

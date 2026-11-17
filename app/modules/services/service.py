@@ -43,8 +43,10 @@ async def list_services(
             "rating": 1,
             "total_reviews": 1,
             "description": 1,
+            "provider_id": 1,
+            "provider_name": 1,
         }
-    ).sort("is_featured", -1).limit(limit)
+    ).sort([("is_featured", -1), ("total_reviews", -1), ("rating", -1)]).limit(limit)
     services = await cursor.to_list(length=limit)
     return format_mongo_docs(services)
 

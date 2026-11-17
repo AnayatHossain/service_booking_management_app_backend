@@ -124,11 +124,11 @@ async def seed():
             )
         print("Catalog synchronized successfully!")
 
-    # 2. Seed Demo Test User
+    # 2. Seed Demo Test Users (Customer & Provider)
     demo_email = "testuser@example.com"
     existing_user = await db.users.find_one({"email": demo_email})
     if not existing_user:
-        print(f"Creating demo test user: {demo_email}")
+        print(f"Creating demo test customer: {demo_email}")
         now = datetime.now(timezone.utc).isoformat()
         demo_user = {
             "name": "Alex Johnson",
@@ -136,15 +136,56 @@ async def seed():
             "password": hash_password("password123"),
             "phone": "+1 (555) 234-5678",
             "role": "customer",
+            "institution_name": None,
             "avatar_url": "https://api.dicebear.com/7.x/initials/svg?seed=AlexJohnson",
             "is_active": True,
             "created_at": now,
             "updated_at": now
         }
         await db.users.insert_one(demo_user)
-        print("Demo user created: testuser@example.com / password123")
+        print("Demo customer created: testuser@example.com / password123")
     else:
-        print(f"Demo user already exists: {demo_email}")
+        print(f"Demo customer already exists: {demo_email}")
+
+    # Seed Demo Provider
+    provider_email = "provider@example.com"
+    existing_provider = await db.users.find_one({"email": provider_email})
+    now = datetime.now(timezone.utc).isoformat()
+    if not existing_provider:
+        print(f"Creating demo test provider: {provider_email}")
+        demo_provider = {
+            "name": "Apex Pro Services",
+            "email": provider_email,
+            "password": hash_password("password123"),
+            "phone": "+1 (555) 987-6543",
+            "role": "provider",
+            "institution_name": "Apex Care Solutions Ltd",
+            "avatar_url": "https://api.dicebear.com/7.x/initials/svg?seed=ApexProServices",
+            "is_active": True,
+            "created_at": now,
+            "updated_at": now
+        }
+        p_res = await db.users.insert_one(demo_provider)
+        provider_id = str(p_res.inserted_id)
+        print("Demo provider created: provider@example.com / password123")
+    else:
+        provider_id = str(existing_provider["_id"])
+        await db.users.update_one(
+            {"_id": existing_provider["_id"]},
+            {"$set": {"role": "provider", "institution_name": "Apex Care Solutions Ltd"}}
+        )
+        print(f"Demo provider updated: {provider_email}")
+
+    # Associate services with provider
+    await db.services.update_many(
+        {},
+        {"$set": {
+            "provider_id": provider_id,
+            "provider_name": "Apex Care Solutions Ltd",
+            "provider_phone": "+1 (555) 987-6543"
+        }}
+    )
+    print("All services mapped to provider Apex Care Solutions Ltd!")
 
     client.close()
     print("Seeding complete!")

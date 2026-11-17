@@ -103,11 +103,13 @@ async def create_appointment(
         "service_category": service.get("category"),
         "service_price": float(service.get("price", 0)),
         "service_image": service.get("image_url", ""),
+        "provider_id": service.get("provider_id"),
+        "provider_name": service.get("provider_name", "Verified Service Provider"),
         "duration_minutes": int(service.get("duration_minutes", 60)),
         "date": req.date,
         "time_slot": req.time_slot,
         "customer_notes": req.customer_notes.strip() if req.customer_notes else None,
-        "status": AppointmentStatus.CONFIRMED.value,  # Auto-confirm on successful booking
+        "status": AppointmentStatus.PENDING.value,
         "created_at": now,
         "updated_at": now,
     }
@@ -115,20 +117,12 @@ async def create_appointment(
     result = await db.appointments.insert_one(appointment_doc)
     appointment_doc["_id"] = result.inserted_id
 
-    # Create real booking notifications for user
+    # Create real initial booking notification for user
     service_title = service.get("name", "Service")
     await db.notifications.insert_one({
         "user_id": str(user["id"]),
         "title": "Booking Submitted! 🎉",
         "message": f"Congratulations! Your booking for {service_title} on {req.date} at {req.time_slot} is now pending.",
-        "type": "booking",
-        "is_read": False,
-        "created_at": now,
-    })
-    await db.notifications.insert_one({
-        "user_id": str(user["id"]),
-        "title": "Booking Confirmed! ✅",
-        "message": f"Great news! Your booking for {service_title} on {req.date} at {req.time_slot} has been confirmed.",
         "type": "booking",
         "is_read": False,
         "created_at": now,
@@ -218,5 +212,86 @@ async def cancel_user_appointment(
         "is_read": False,
         "created_at": now,
     })
+
+    return format_mongo_doc(updated)
+
+
+async def list_provider_appointments(db: AsyncIOMotorDatabase, provider_id: str, status_filter: Optional[str] = None) -> List[dict]:
+    query: dict = {
+        "$or": [
+            {"provider_id": provider_id},
+            {"provider_id": {"$exists": True}}
+        ]
+    }
+    if status_filter and status_filter.strip():
+        query["status"] = {"$regex": f"^{status_filter.strip()}$", "$options": "i"}
+
+    cursor = db.appointments.find(query).sort("created_at", -1)
+    appointments = await cursor.to_list(length=100)
+    return format_mongo_docs(appointments)
+
+
+async def update_appointment_status_by_provider(db: AsyncIOMotorDatabase, appointment_id: str, new_status: str) -> dict:
+    valid_statuses = ["Pending", "Confirmed", "Completed", "Cancelled"]
+    matched_status = next((s for s in valid_statuses if s.lower() == new_status.strip().lower()), None)
+    if not matched_status:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status '{new_status}'. Allowed: {', '.join(valid_statuses)}"
+        )
+
+    try:
+        oid = ObjectId(appointment_id)
+        apt = await db.appointments.find_one({"_id": oid})
+    except Exception:
+        apt = await db.appointments.find_one({"id": appointment_id})
+
+    if not apt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Appointment not found."
+        )
+
+    now = datetime.now(timezone.utc).isoformat()
+    updated = await db.appointments.find_one_and_update(
+        {"_id": apt["_id"]},
+        {"$set": {"status": matched_status, "updated_at": now}},
+        return_document=True
+    )
+
+    # Trigger appropriate customer notification
+    customer_id = apt.get("user_id")
+    service_title = apt.get("service_name") or "Service"
+    date_str = apt.get("date", "")
+    time_str = apt.get("time_slot", "")
+
+    if customer_id:
+        if matched_status == "Confirmed":
+            await db.notifications.insert_one({
+                "user_id": customer_id,
+                "title": "Booking Confirmed! ✅",
+                "message": f"Great news! Your booking for {service_title} on {date_str} at {time_str} has been confirmed.",
+                "type": "booking",
+                "is_read": False,
+                "created_at": now,
+            })
+        elif matched_status == "Completed":
+            await db.notifications.insert_one({
+                "user_id": customer_id,
+                "title": "Booking Completed! ⭐",
+                "message": f"Thank you! Your appointment for {service_title} on {date_str} was completed. We hope you enjoyed the service!",
+                "type": "booking",
+                "is_read": False,
+                "created_at": now,
+            })
+        elif matched_status == "Cancelled":
+            await db.notifications.insert_one({
+                "user_id": customer_id,
+                "title": "Booking Cancelled ❌",
+                "message": f"Your appointment for {service_title} on {date_str} at {time_str} has been cancelled.",
+                "type": "booking",
+                "is_read": False,
+                "created_at": now,
+            })
 
     return format_mongo_doc(updated)

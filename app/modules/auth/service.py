@@ -19,12 +19,14 @@ async def register_user(db: AsyncIOMotorDatabase, req: RegisterRequest) -> dict:
         )
 
     now = datetime.now(timezone.utc).isoformat()
+    role = "provider" if req.role in ["provider", "service_provider"] else "customer"
     new_user = {
         "name": req.name.strip(),
         "email": email_clean,
         "password": hash_password(req.password),
         "phone": req.phone.strip() if req.phone else None,
-        "role": "customer",
+        "role": role,
+        "institution_name": req.institution_name.strip() if req.institution_name else None,
         "avatar_url": f"https://api.dicebear.com/7.x/initials/svg?seed={req.name.strip()}",
         "is_active": True,
         "created_at": now,
