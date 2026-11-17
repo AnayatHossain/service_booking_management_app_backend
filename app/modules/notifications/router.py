@@ -20,6 +20,20 @@ class NotificationItem(BaseModel):
     created_at: str
 
 
+@router.get("/unread-count", summary="Get unread notifications count")
+async def get_unread_count(current_user: dict = Depends(get_current_user)):
+    user_id = str(current_user.get("id") or current_user.get("_id"))
+    database = get_database()
+    count = await database.get_collection("notifications").count_documents({
+        "user_id": user_id,
+        "is_read": False
+    })
+    return success_response(
+        data={"unread_count": count},
+        message="Unread count retrieved."
+    )
+
+
 @router.get("", summary="Get all notifications for authenticated user")
 async def get_user_notifications(current_user: dict = Depends(get_current_user)):
     user_id = str(current_user.get("id") or current_user.get("_id"))

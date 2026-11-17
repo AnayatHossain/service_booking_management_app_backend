@@ -114,6 +114,26 @@ async def create_appointment(
 
     result = await db.appointments.insert_one(appointment_doc)
     appointment_doc["_id"] = result.inserted_id
+
+    # Create real booking notifications for user
+    service_title = service.get("name", "Service")
+    await db.notifications.insert_one({
+        "user_id": str(user["id"]),
+        "title": "Booking Submitted! 🎉",
+        "message": f"Congratulations! Your booking for {service_title} on {req.date} at {req.time_slot} is now pending.",
+        "type": "booking",
+        "is_read": False,
+        "created_at": now,
+    })
+    await db.notifications.insert_one({
+        "user_id": str(user["id"]),
+        "title": "Booking Confirmed! ✅",
+        "message": f"Great news! Your booking for {service_title} on {req.date} at {req.time_slot} has been confirmed.",
+        "type": "booking",
+        "is_read": False,
+        "created_at": now,
+    })
+
     return format_mongo_doc(appointment_doc)
 
 
@@ -187,5 +207,16 @@ async def cancel_user_appointment(
         {"$set": {"status": AppointmentStatus.CANCELLED.value, "updated_at": now}},
         return_document=True
     )
+
+    # Insert Cancellation Notification
+    service_title = apt.get("service_name") or "Service"
+    await db.notifications.insert_one({
+        "user_id": str(user_id),
+        "title": "Booking Cancelled ❌",
+        "message": f"Your appointment for {service_title} on {apt.get('date', '')} at {apt.get('time_slot', '')} has been cancelled.",
+        "type": "booking",
+        "is_read": False,
+        "created_at": now,
+    })
 
     return format_mongo_doc(updated)

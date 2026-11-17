@@ -10,10 +10,34 @@ from app.modules.users.service import update_user_profile, change_user_password
 router = APIRouter(prefix="/api/users", tags=["Users"])
 
 
-@router.get("/profile", summary="Get personal profile")
-async def get_profile(current_user: dict = Depends(get_current_user)):
+@router.get("/profile", summary="Get personal profile with stats")
+async def get_profile(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    user_id = str(current_user.get("id") or current_user.get("_id"))
+    total_bookings = await db.appointments.count_documents({"user_id": user_id})
+    active_bookings = await db.appointments.count_documents({
+        "user_id": user_id,
+        "status": {"$in": ["Pending", "Confirmed"]}
+    })
+    completed_bookings = await db.appointments.count_documents({
+        "user_id": user_id,
+        "status": "Completed"
+    })
+    cancelled_bookings = await db.appointments.count_documents({
+        "user_id": user_id,
+        "status": "Cancelled"
+    })
+
+    enriched = dict(current_user)
+    enriched["total_bookings"] = total_bookings
+    enriched["active_bookings"] = active_bookings
+    enriched["completed_bookings"] = completed_bookings
+    enriched["cancelled_bookings"] = cancelled_bookings
+
     return success_response(
-        data=current_user,
+        data=enriched,
         message="Profile fetched successfully."
     )
 
