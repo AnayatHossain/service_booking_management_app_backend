@@ -6,7 +6,7 @@ High-performance, production-ready RESTful backend built with **FastAPI**, **Mon
 
 ## 🌟 Key Architecture & Security Features
 
-- **Framework**: FastAPI (Asynchronous Python 3.12)
+- **Framework**: FastAPI (Asynchronous Python 3.11+ / 3.12+)
 - **Database**: MongoDB Atlas via `motor` (Async non-blocking I/O)
 - **Security Standards**:
   - **OWASP Recommended Security Headers**: Strict CSP, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, and server disclosure stripping (`Server`, `X-Powered-By`).
@@ -17,6 +17,7 @@ High-performance, production-ready RESTful backend built with **FastAPI**, **Mon
   - **Stateless JWT Authentication**: Access tokens and persistent session management.
 - **AI Integration**:
   - AI Service Assistant powered by Google Gemini API with system-level context injection of live service catalog and intelligent fallback engine.
+  - Multi-session chat support with conversation history storage and clearing.
   - Zero API key exposure to mobile clients (backend proxy architecture).
 
 ---
@@ -35,18 +36,20 @@ service_booking_management_app_backend/
 │   │   ├── responses.py        # Utf8JSONResponse and standard response helpers
 │   │   └── security.py         # PBKDF2 hashing & JWT creation/verification
 │   ├── modules/
-│   │   ├── ai_assistant/       # AI Service Assistant module
+│   │   ├── ai_assistant/       # AI Service Assistant & sessions module
 │   │   ├── appointments/       # Booking & conflict-prevention engine
-│   │   ├── auth/               # Customer register, login, session
-│   │   ├── services/           # Service catalog, search & filtering
-│   │   └── users/              # User profile management
+│   │   ├── auth/               # Customer & provider register, login, session
+│   │   ├── notifications/      # Real-time notifications & badge counts
+│   │   ├── ratings/            # Ratings & feedback (Submit, Edit, Delete)
+│   │   ├── services/           # Service catalog, search, filter & provider CRUD
+│   │   └── users/              # User & provider profile management
 │   ├── utils/
 │   │   └── helpers.py          # BSON ObjectId and serialization utilities
 │   └── main.py                 # FastAPI application factory & middleware setup
 ├── scripts/
 │   ├── run_server.py           # Server runner entrypoint
-│   ├── seed_data.py            # Database seeder with sample services and demo user
-│   └── test_api.py             # Automated API test suite
+│   ├── seed_data.py            # Database seeder with sample services and demo users
+│   └── test_api.py             # Automated API verification test suite
 ├── .env                        # Configuration file
 ├── requirements.txt            # Python dependencies
 └── README.md
@@ -59,33 +62,36 @@ service_booking_management_app_backend/
 ### 1. Prerequisites
 - Python 3.11+ or 3.12+
 - Active MongoDB connection (MongoDB Atlas URI or local instance)
+- Google Gemini API Key
 
 ### 2. Environment Configuration
-Create a `.env` file from `.env.example`:
-```bash
-cp .env.example .env
-```
-Ensure your MongoDB URL and Gemini API Key are set:
+Create a `.env` file in the root backend directory:
 ```env
 MONGODB_URL=mongodb+srv://<username>:<password>@servicebookingdb.czvmevv.mongodb.net/?retryWrites=true&w=majority
 DATABASE_NAME=servicebookingdb
-JWT_SECRET=your_jwt_secret_key
+JWT_SECRET=supersecretjwtkey_assessment2026_oriqon_group
 GEMINI_API_KEY=your_gemini_api_key
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+HOST=0.0.0.0
+PORT=8000
+ENVIRONMENT=development
 ```
 
 ### 3. Install Dependencies
 ```bash
 python -m venv .venv
+
 # Windows:
 .venv\Scripts\activate
 # Linux/macOS:
 source .venv/bin/activate
 
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
 ### 4. Seed Database
-Populate initial services and a demo customer account (`testuser@example.com` / `password123`):
+Populate initial services catalog and demo accounts for both customer and service provider:
 ```bash
 python scripts/seed_data.py
 ```
@@ -110,25 +116,53 @@ Interactive API documentation will be available at:
 
 ---
 
+## 🔑 Demo Accounts
+
+| Role | Email | Password |
+|------|-------|----------|
+| **Customer** | `testuser@example.com` | `password123` |
+| **Service Provider** | `provider@example.com` | `password123` |
+
+---
+
 ## 📡 API Endpoints Overview
 
 | Method | Endpoint | Description | Auth Required |
 |---|---|---|---|
-| `POST` | `/api/auth/register` | Register new customer | No |
+| `POST` | `/api/auth/register` | Register new customer or provider | No |
 | `POST` | `/api/auth/login` | Login with email & password | No |
-| `GET` | `/api/auth/me` | Get current user profile | Yes (Bearer) |
+| `GET` | `/api/auth/me` | Get current user identity & role | Yes (Bearer) |
 | `POST` | `/api/auth/logout` | Terminate session | Yes (Bearer) |
 | `GET` | `/api/users/profile` | View profile details | Yes (Bearer) |
 | `PUT` | `/api/users/profile` | Update profile information | Yes (Bearer) |
 | `POST` | `/api/users/change-password` | Change account password | Yes (Bearer) |
-| `GET` | `/api/services` | List all services (search & filter) | No |
-| `GET` | `/api/services/featured` | List featured/popular services | No |
-| `GET` | `/api/services/categories` | Get all service categories | No |
+| `GET` | `/api/services` | List all services (search, category, sort) | No |
+| `GET` | `/api/services/featured` | List featured/HOT services | No |
+| `GET` | `/api/services/categories` | Get all distinct service categories | No |
 | `GET` | `/api/services/{id}` | Get individual service details | No |
+| `GET` | `/api/services/provider/my-services` | Provider: List own services with search & filter | Yes (Provider) |
+| `POST` | `/api/services` | Provider: Create new service | Yes (Provider) |
+| `PUT` | `/api/services/{id}` | Provider: Update service & sync appointments | Yes (Provider) |
+| `DELETE` | `/api/services/{id}` | Provider: Delete service | Yes (Provider) |
 | `GET` | `/api/appointments/availability` | Check slot availability for date | No |
 | `POST` | `/api/appointments` | Book new appointment | Yes (Bearer) |
-| `GET` | `/api/appointments/my` | View user's appointments | Yes (Bearer) |
+| `GET` | `/api/appointments/my` | View customer appointments | Yes (Bearer) |
 | `GET` | `/api/appointments/{id}` | View single appointment details | Yes (Bearer) |
 | `PATCH` | `/api/appointments/{id}/cancel` | Cancel an appointment | Yes (Bearer) |
+| `GET` | `/api/appointments/provider/my-bookings` | Provider: View assigned bookings | Yes (Provider) |
+| `PATCH` | `/api/appointments/{id}/status` | Provider: Update appointment status | Yes (Provider) |
+| `GET` | `/api/ratings/service/{service_id}` | Get reviews for a service | No |
+| `POST` | `/api/ratings` | Submit review for completed appointment | Yes (Bearer) |
+| `PUT` | `/api/ratings/{id}` | Edit submitted review & recalculate score | Yes (Bearer) |
+| `DELETE` | `/api/ratings/{id}` | Delete review & update stats | Yes (Bearer) |
+| `GET` | `/api/notifications` | Get notifications history | Yes (Bearer) |
+| `GET` | `/api/notifications/unread-count` | Get unread notifications count | Yes (Bearer) |
+| `PATCH` | `/api/notifications/{id}/read` | Mark single notification as read | Yes (Bearer) |
+| `PATCH` | `/api/notifications/read-all` | Mark all notifications as read | Yes (Bearer) |
+| `DELETE` | `/api/notifications/{id}` | Delete notification | Yes (Bearer) |
 | `POST` | `/api/ai/chat` | Chat with AI Service Assistant | No / Optional |
 | `GET` | `/api/ai/prompts` | Get starter prompts for AI assistant | No |
+| `GET` | `/api/ai/sessions` | List user's AI chat sessions | Yes (Bearer) |
+| `GET` | `/api/ai/sessions/{id}` | Get messages for a session | Yes (Bearer) |
+| `DELETE` | `/api/ai/sessions/{id}` | Delete single AI session | Yes (Bearer) |
+| `DELETE` | `/api/ai/sessions` | Clear all AI sessions | Yes (Bearer) |

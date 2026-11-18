@@ -15,6 +15,8 @@ from app.modules.appointments.service import (
     list_provider_appointments,
     update_appointment_status_by_provider,
     rate_appointment,
+    update_appointment_rating,
+    delete_appointment_rating,
 )
 
 router = APIRouter(prefix="/api/appointments", tags=["Appointments"])
@@ -133,4 +135,41 @@ async def rate_completed_appointment(
     return success_response(
         data=updated,
         message="Thank you! Your rating and review have been submitted."
+    )
+
+
+@router.put("/{appointment_id}/rate", summary="Update review & rating for completed appointment")
+async def update_completed_appointment_rating_endpoint(
+    appointment_id: str,
+    req: RateAppointmentRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    updated = await update_appointment_rating(
+        db=db,
+        appointment_id=appointment_id,
+        user_id=current_user["id"],
+        rating_val=req.rating,
+        review_text=req.review
+    )
+    return success_response(
+        data=updated,
+        message="Your review and rating have been updated successfully."
+    )
+
+
+@router.delete("/{appointment_id}/rate", summary="Delete review & rating for completed appointment")
+async def delete_completed_appointment_rating_endpoint(
+    appointment_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    updated = await delete_appointment_rating(
+        db=db,
+        appointment_id=appointment_id,
+        user_id=current_user["id"]
+    )
+    return success_response(
+        data=updated,
+        message="Your review and rating have been removed."
     )

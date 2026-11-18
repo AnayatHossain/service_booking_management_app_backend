@@ -49,4 +49,13 @@ async def close_mongo_connection():
 
 
 def get_database() -> AsyncIOMotorDatabase:
+    if db_manager.db is None:
+        logger.info("Initializing lazy MongoDB connection for serverless/Vercel environment...")
+        db_manager.client = AsyncIOMotorClient(
+            settings.mongodb_url,
+            serverSelectionTimeoutMS=5000,
+            maxPoolSize=50,
+            minPoolSize=1,
+        )
+        db_manager.db = db_manager.client[settings.database_name]
     return db_manager.db
