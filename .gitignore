@@ -3,7 +3,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.env
 .DS_Store
 *.log
-.vscode/
+config.bat
+node_modules
