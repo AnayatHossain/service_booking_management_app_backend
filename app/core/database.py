@@ -1,4 +1,5 @@
 import logging
+import certifi
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from app.core.config import settings
 
@@ -13,13 +14,26 @@ class DatabaseManager:
 db_manager = DatabaseManager()
 
 
+def _get_mongo_client_kwargs() -> dict:
+    kwargs = {
+        "serverSelectionTimeoutMS": 8000,
+        "maxPoolSize": 50,
+        "minPoolSize": 1,
+    }
+    try:
+        ca = certifi.where()
+        if ca:
+            kwargs["tlsCAFile"] = ca
+    except Exception as e:
+        logger.warning(f"Could not load certifi CA file: {e}")
+    return kwargs
+
+
 async def connect_to_mongo():
     logger.info("Connecting to MongoDB...")
     db_manager.client = AsyncIOMotorClient(
         settings.mongodb_url,
-        serverSelectionTimeoutMS=5000,
-        maxPoolSize=50,
-        minPoolSize=10,
+        **_get_mongo_client_kwargs()
     )
     db_manager.db = db_manager.client[settings.database_name]
 
@@ -53,9 +67,7 @@ def get_database() -> AsyncIOMotorDatabase:
         logger.info("Initializing lazy MongoDB connection for serverless/Vercel environment...")
         db_manager.client = AsyncIOMotorClient(
             settings.mongodb_url,
-            serverSelectionTimeoutMS=5000,
-            maxPoolSize=50,
-            minPoolSize=1,
+            **_get_mongo_client_kwargs()
         )
         db_manager.db = db_manager.client[settings.database_name]
     return db_manager.db
