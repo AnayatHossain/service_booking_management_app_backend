@@ -138,6 +138,53 @@ async def health():
     )
 
 
+@app.get("/api/db-diagnostics", tags=["System"])
+async def db_diagnostics():
+    import httpx
+    from app.core.database import get_database
+
+    outbound_ip = "unknown"
+    try:
+        async with httpx.AsyncClient(timeout=4) as client:
+            resp = await client.get("https://api.ipify.org?format=json")
+            if resp.status_code == 200:
+                outbound_ip = resp.json().get("ip", "unknown")
+    except Exception as e:
+        outbound_ip = f"Failed to fetch IP: {e}"
+
+    db_status = "unknown"
+    error_msg = None
+    try:
+        db = get_database()
+        # Run a simple ping
+        res = await db.command("ping")
+        db_status = f"connected successfully: {res}"
+    except Exception as e:
+        db_status = "connection_failed"
+        error_msg = str(e)
+
+    # Mask password in URL
+    raw_url = settings.mongodb_url
+    masked_url = raw_url
+    if "@" in raw_url:
+        prefix = raw_url.split("@")[0]
+        suffix = raw_url.split("@")[1]
+        if ":" in prefix:
+            user_part = prefix.split(":")[0] + ":" + prefix.split(":")[1][:2] + "..."
+            masked_url = f"{user_part}@{suffix}"
+
+    return success_response(
+        data={
+            "outbound_ip": outbound_ip,
+            "database_name": settings.database_name,
+            "mongodb_url_masked": masked_url,
+            "db_status": db_status,
+            "error_detail": error_msg,
+        },
+        message="Database Diagnostics Information"
+    )
+
+
 # Register modular routers
 app.include_router(auth_router)
 app.include_router(users_router)
