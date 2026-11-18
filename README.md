@@ -65,17 +65,11 @@ service_booking_management_app_backend/
 - Google Gemini API Key
 
 ### 2. Environment Configuration
-Create a `.env` file in the root backend directory:
-```env
-MONGODB_URL=mongodb+srv://<username>:<password>@servicebookingdb.czvmevv.mongodb.net/?retryWrites=true&w=majority
-DATABASE_NAME=servicebookingdb
-JWT_SECRET=supersecretjwtkey_assessment2026_oriqon_group
-GEMINI_API_KEY=your_gemini_api_key
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
-HOST=0.0.0.0
-PORT=8000
-ENVIRONMENT=development
+Create a `.env` file in the root backend directory using the provided template:
+```bash
+cp .env.example .env
 ```
+Update `.env` with your actual MongoDB connection URI, JWT secret, and optional Gemini API key. Refer to `.env.example` for details.
 
 ### 3. Install Dependencies
 ```bash
