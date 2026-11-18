@@ -19,6 +19,8 @@ def _get_mongo_client_kwargs() -> dict:
         "serverSelectionTimeoutMS": 8000,
         "maxPoolSize": 50,
         "minPoolSize": 1,
+        "tls": True,
+        "tlsAllowInvalidCertificates": True,
     }
     try:
         ca = certifi.where()
